@@ -1,9 +1,10 @@
 ### Get all images
 # This is a comment
 GET http://localhost:3000/api/images
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImV4aXN0aW5nVXNlciIsImlhdCI6MTc0OTI2MTUwNiwiZXhwIjoxNzQ5MzQ3OTA2fQ.U3hxKCV5JAemSo6P57k0uTvaIXLhq_BKIBymjYNIVl0
 
 ### filter test 
-GET http://localhost:3000/api/images?name=c
+GET http://localhost:3000/api/images?name=cat
 
 ### A second example.  Each request must be delimited by a triple hash
 POST http://localhost:3000/api/test
@@ -17,5 +18,72 @@ PATCH http://localhost:3000/api/images/683f906613afa53258409846
 Content-Type: application/json
 
 {
-  "name": ""
+  "name": "him"
+}
+
+### New user registration
+POST http://localhost:3000/auth/register
+Content-Type: application/json
+
+{ "username": "newuser", "password": "password" }
+
+### 3) Successful registration → 201
+POST http://localhost:3000/auth/register
+Content-Type: application/json
+
+{ "username": "existingUser", "password": "correctpassword" }
+
+
+### Faield registration - missing field
+POST http://localhost:3000/auth/register
+Content-Type: application/json
+
+{  "password": "password123"}
+### Test login: missing fields → 400
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{}
+
+### Test login: user not found → valid=false
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{"username":"nonexistent","password":"whatever"}
+
+### Test login: wrong password → valid=false
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{"username":"existingUser","password":"wrongpassword"}
+
+### Test login: correct credentials → valid=true
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{"username":"existingUser","password":"correctpassword"}
+
+### Testing token
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{"username":"existingUser", "password" :"correctpassword"}
+
+### 1) Missing body fields → should get HTTP 400 Bad Request
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+  "user": "alice"
+}
+
+###
+
+### 2) Bad credentials → should get HTTP 401 Unauthorized
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+  "username": "alice",
+  "password": "wrongPassword"
 }

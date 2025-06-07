@@ -3,13 +3,9 @@ import { useState } from "react";
 import type { IApiImageData } from "../../backend/src/shared/ApiImageData";
 
 interface INameEditorProps {
-  /** The ID of the image we're renaming */
   imageId: string;
-  /** The current name (to prefill the input) */
   initialValue: string;
-  /** The full images array from App */
   images: IApiImageData[];
-  /** Setter from App to update the images array */
   setImages: React.Dispatch<React.SetStateAction<IApiImageData[]>>;
 }
 
@@ -19,14 +15,9 @@ export function ImageNameEditor({
   images,
   setImages,
 }: INameEditorProps) {
-  // Are we currently editing (show input+buttons) or not?
   const [isEditingName, setIsEditingName] = useState(false);
-  // Controlled input for the new name
   const [input, setInput] = useState(initialValue);
-
-  // Track if the PUT/POST (simulated fetch) is in flight
   const [isWorking, setIsWorking] = useState(false);
-  // Any error text to show if the fetch fails
   const [errorText, setErrorText] = useState<string | null>(null);
 
   async function handleSubmitPressed() {
@@ -34,26 +25,33 @@ export function ImageNameEditor({
     setErrorText(null);
 
     try {
-      // Simulate hitting the real API. 
-      // (We are using the same URL as in App.tsx when fetching all images.)
-      const res = await fetch("/api/images");
-      if (!res.ok) {
-        throw new Error(`Server responded ${res.status}`);
+      const res = await fetch(`/api/images/${imageId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: input }),
+      });
+
+      if (res.status === 204) {
+        // Persist change locally so UI updates immediately
+        setImages(
+          images.map(img =>
+            img.id === imageId ? { ...img, name: input } : img
+          )
+        );
+        setIsEditingName(false);
+        setErrorText(null);
+      } else if (res.status === 404) {
+        const payload = await res.json();
+        setErrorText(payload.message || "Image not found");
+      } else if (res.status === 422) {
+        const payload = await res.json();
+        setErrorText(payload.message);
+      } else {
+        const payload = await res.json();
+        throw new Error(payload.message || `Server responded ${res.status}`);
       }
-      // We don't actually care about the returned JSON here—
-      // we only use this to decide “did the network call succeed?”
-      await res.json();
-
-      // On success, update the in‐memory array in App:
-      setImages(
-        images.map((img) =>
-          img.id === imageId ? { ...img, name: input } : img
-        )
-      );
-
-      // Close the editor and clear any previous error
-      setIsEditingName(false);
-      setErrorText(null);
     } catch (err) {
       console.error("Name update failed:", err);
       setErrorText("Failed to update name. Please try again.");

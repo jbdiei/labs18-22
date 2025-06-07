@@ -6,6 +6,10 @@ import {fetchDataFromServer} from "./shared/ApiImageData";
 import { ImageProvider,IApiImageData  } from "./ImageProvider";
 import { connectMongo } from "./connectMongo";
 import { registerImageRoutes } from "./routes/imageRoutes";
+import { registerAuthRoutes } from "./routes/authRoutes";
+import { CredentialsProvider } from "./CredentialsProvider";
+import { verifyAuthToken } from "./verifyAuthToken";
+
 dotenv.config(); // Read the .env file in the current working directory, and load values into process.env.
 
 const PORT = process.env.PORT || 3000;
@@ -24,6 +28,13 @@ async function startMongoConnection(){
 
 
 const app = express();
+// 4) Load JWT secret into app.locals for use in handlers
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    throw new Error("Missing JWT_SECRET in environment variables");
+  }
+  app.locals.JWT_SECRET = jwtSecret;
+
 app.use(express.static(STATIC_DIR));
 
 const staticPath = path.resolve(__dirname, "..", STATIC_DIR);
@@ -33,7 +44,13 @@ app.get("/api/hello", (req: Request, res: Response) => {
     res.send("Hello, World");
 });
 
+  app.use("/api/*", verifyAuthToken);
+  
   registerImageRoutes(app, imageProvider);
+
+  // Register your new auth routes
+  const credsProv = new CredentialsProvider(mongoClient)
+  registerAuthRoutes(app, credsProv);
 
 
 app.get(Object.values(ValidRoutes), (req: Request, res: Response) => {
