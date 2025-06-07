@@ -1,10 +1,10 @@
-import { MongoClient, Collection, ObjectId } from "mongodb";
+import { MongoClient, Collection, ObjectId, InsertOneResult  } from "mongodb";
 
 export interface IImageDocument {
     _id: ObjectId;
     src: string;
     name: string;
-    authorId: ObjectId;
+    authorId: string;
 }
 
 export interface IApiImageData {
@@ -33,53 +33,23 @@ export class ImageProvider {
      * Uses aggregation to denormalize author.username.
      */
     public async getImages(nameFilter?: string): Promise<IApiImageData[]> {
-        const pipeline: object[] = [];
+    // Optional name filtering:
+    const filter = nameFilter && nameFilter.trim() !== ""
+      ? { name: { $regex: new RegExp(nameFilter, "i") } }
+      : {};
+    const docs = await this.collection.find(filter).toArray();
 
-        // Add a match stage only if nameFilter is a non-empty string
-        if (nameFilter && nameFilter.trim() !== "") {
-            pipeline.push({
-                $match: { name: { $regex: new RegExp(nameFilter, "i") } }
-            });
-        }
-
-        // Lookup to join with "users" collection
-        pipeline.push({
-            $lookup: {
-                from: "users",
-                localField: "authorId",
-                foreignField: "_id",
-                as: "authorDoc"
-            }
-        });
-
-        // Unwind the authorDoc array
-        pipeline.push({
-            $unwind: {
-                path: "$authorDoc",
-                preserveNullAndEmptyArrays: true
-            }
-        });
-
-        // Project required fields and default missing username
-        pipeline.push({
-            $project: {
-                _id: 1,
-                name: 1,
-                src: 1,
-                "author.username": { $ifNull: ["$authorDoc.username", "Unknown"] }
-            }
-        });
-
-        const cursor = this.collection.aggregate<IImageDocument & { author: { username: string } }>(pipeline);
-        const docs = await cursor.toArray();
-
-        return docs.map(doc => ({
-            id: doc._id.toHexString(),
-            name: doc.name,
-            src: doc.src,
-            author: { username: doc.author.username }
-        }));
-    }
+    // Map into exactly what the frontend needs
+    return docs.map(doc => ({
+      id: doc._id.toString(),
+      src: doc.src,
+      name: doc.name,
+      // here we “fake” the user object
+      author: {
+        username: doc.authorId.toString()
+      }
+    }));
+  }
 
     /**
      * Update an image's `name` field by its string-ID.
@@ -97,4 +67,19 @@ export class ImageProvider {
     if (!ObjectId.isValid(id)) return null;
     return this.collection.findOne({ _id: new ObjectId(id) });
   }
+
+  public async createImage(
+    src: string,
+    name: string,
+    authorId: string
+  ): Promise<string> {
+    // const authorObjId = new ObjectId(authorId);
+    const newId = new ObjectId();
+
+    const result: InsertOneResult<IImageDocument> =
+      await this.collection.insertOne({_id: newId, src, name, authorId });
+
+    return result.insertedId.toString();
+  }
 }
+

@@ -127,7 +127,7 @@ function AppRoutes() {
           }
         />
         <Route path={ValidRoutes.UPLOAD} element={
-        <ProtectedRoute authToken={authToken}><UploadPage /></ProtectedRoute>} />
+        <ProtectedRoute authToken={authToken}><UploadPage authToken={authToken} /></ProtectedRoute>} />
 
         {/* Public: Login */}
         <Route
