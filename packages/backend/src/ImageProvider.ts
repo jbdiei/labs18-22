@@ -93,4 +93,8 @@ export class ImageProvider {
         const result = await this.collection.updateOne({ _id }, { $set: { name: newName } });
         return result.matchedCount;
     }
+    public async getRawImageById(id: string): Promise<IImageDocument | null> {
+    if (!ObjectId.isValid(id)) return null;
+    return this.collection.findOne({ _id: new ObjectId(id) });
+  }
 }

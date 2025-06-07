@@ -16,39 +16,32 @@ export function registerImageRoutes(
   imageProvider: ImageProvider
 ) {
   // GET /api/images → return all images
-  app.get("/api/images", async (_req: Request, res: Response) => {
-    await waitDuration(Math.random()*5000);
-    try {
-      const allImages = await imageProvider.getImages();
-      res.json(allImages);
+  app.get("/api/images", async (req: Request, res: Response) => {
+    await waitDuration(Math.random() * 5000);
+
+    // 1) Read the optional `name` query‐param
+    const rawName = req.query.name;
+    if (rawName !== undefined && typeof rawName !== "string") {
+      res.status(400).json({
+        error: "Bad Request",
+        message: "`name` query parameter must be a string",
+      });
       return;
+    }
+
+    try {
+      // 2) Fetch images, passing nameFilter if provided
+      const images: IApiImageData[] =
+        typeof rawName === "string"
+          ? await imageProvider.getImages(rawName)
+          : await imageProvider.getImages();
+
+      res.json(images);
+      return ;
     } catch (err) {
       console.error("Error fetching images:", err);
       res.status(500).json({ error: "Failed to fetch images" });
-      return;
-    }
-  });
-
-  // GET /api/images/search?name=... → search by name
-  app.get("/api/images/search", async (req: Request, res: Response) => {
-    const rawName = req.query.name;
-    if (typeof rawName !== "string") {
-      res.status(400).json({
-        error: "Bad Request",
-        message: "Name query parameter is required and must be a string",
-      });
-      return;
-    }
-    try {
-      const images = await imageProvider.getImages(rawName);
-      res.json(images);
-      return;
-    } catch (error) {
-      console.error("Error searching images:", error);
-      res.status(500).json({
-        error: "Failed to search images",
-      });
-      return;
+      return ;
     }
   });
 
@@ -58,6 +51,7 @@ export function registerImageRoutes(
     express.json(),
     async (req: Request, res: Response) => {
       const imageId = req.params.id;
+
       // Validate ObjectId
       if (!ObjectId.isValid(imageId)) {
         res.status(404).json({
@@ -68,10 +62,10 @@ export function registerImageRoutes(
       }
 
       // Ensure body contains a valid name
-      if (!req.body || typeof req.body.name !== 'string') {
+      if (!req.body || typeof req.body.name !== "string") {
         res.status(400).json({
           error: "Bad Request",
-          message: "Request body must be { \"name\": \"newTitle\" }",
+          message: 'Request body must be { "name": "newTitle" }',
         });
         return;
       }
@@ -97,10 +91,9 @@ export function registerImageRoutes(
       await waitDuration(500);
 
       try {
-        // Retrieve denormalized images and find the one we're updating
-        const allImages: IApiImageData[] = await imageProvider.getImages();
-        const image = allImages.find((img) => img.id === imageId);
-        if (!image) {
+        // Fetch the raw document (with authorId) so we can check ownership
+        const rawDoc = await imageProvider.getRawImageById(imageId);
+        if (!rawDoc) {
           res.status(404).json({
             error: "Not Found",
             message: "Image does not exist",
@@ -108,9 +101,12 @@ export function registerImageRoutes(
           return;
         }
 
-        // Ensure the logged-in user is the author
-        const loggedInUsername = req.user?.username;
-        if (image.author.username !== loggedInUsername) {
+        // Compare authorId to logged-in user’s ID (in your JWT you must have set userId)
+        const loggedInUserId = req.user?.username as string ;
+        
+        const rawAuthor = rawDoc.authorId.toString() 
+       
+        if (rawAuthor !== loggedInUserId) {
           res.status(403).json({
             error: "Forbidden",
             message: "You do not have permission to modify this image",
@@ -130,6 +126,7 @@ export function registerImageRoutes(
           });
           return;
         }
+
         res.status(204).send();
         return;
       } catch (err) {

@@ -1,26 +1,26 @@
 // frontend/src/images/ImageNameEditor.tsx
 import { useState } from "react";
-import type { IApiImageData } from "../../backend/src/shared/ApiImageData";
 
-interface INameEditorProps {
+interface ImageNameEditorProps {
   imageId: string;
   initialValue: string;
-  images: IApiImageData[];
-  setImages: React.Dispatch<React.SetStateAction<IApiImageData[]>>;
+  authToken: string;
+  /** Called after the server confirms a 204 rename */
+  onRename: (id: string, newName: string) => void;
 }
 
 export function ImageNameEditor({
   imageId,
   initialValue,
-  images,
-  setImages,
-}: INameEditorProps) {
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [input, setInput] = useState(initialValue);
-  const [isWorking, setIsWorking] = useState(false);
-  const [errorText, setErrorText] = useState<string | null>(null);
+  authToken,
+  onRename,
+}: ImageNameEditorProps) {
+  const [isEditing, setIsEditing]   = useState(false);
+  const [input, setInput]           = useState(initialValue);
+  const [isWorking, setIsWorking]   = useState(false);
+  const [errorText, setErrorText]   = useState<string | null>(null);
 
-  async function handleSubmitPressed() {
+  async function handleSubmit() {
     setIsWorking(true);
     setErrorText(null);
 
@@ -29,30 +29,36 @@ export function ImageNameEditor({
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
         },
-        body: JSON.stringify({ name: input }),
+        body: JSON.stringify({ name: input.trim() }),
       });
 
       if (res.status === 204) {
-        // Persist change locally so UI updates immediately
-        setImages(
-          images.map(img =>
-            img.id === imageId ? { ...img, name: input } : img
-          )
-        );
-        setIsEditingName(false);
-        setErrorText(null);
-      } else if (res.status === 404) {
-        const payload = await res.json();
-        setErrorText(payload.message || "Image not found");
-      } else if (res.status === 422) {
-        const payload = await res.json();
-        setErrorText(payload.message);
-      } else {
-        const payload = await res.json();
-        throw new Error(payload.message || `Server responded ${res.status}`);
+        // Tell App to update its state
+        onRename(imageId, input.trim());
+        setIsEditing(false);
+        return;
       }
-    } catch (err) {
+
+      // Handle not-found
+      if (res.status === 404) {
+        const payload = await res.json().catch(() => ({}));
+        setErrorText(payload.message || "Image not found");
+        return;
+      }
+
+      // Handle name-too-long
+      if (res.status === 422) {
+        const payload = await res.json().catch(() => ({}));
+        setErrorText(payload.message || "Name exceeds length limit");
+        return;
+      }
+
+      // Other errors
+      const payload = await res.json().catch(() => ({}));
+      throw new Error(payload.message || `Server responded ${res.status}`);
+    } catch (err: any) {
       console.error("Name update failed:", err);
       setErrorText("Failed to update name. Please try again.");
     } finally {
@@ -60,7 +66,7 @@ export function ImageNameEditor({
     }
   }
 
-  if (isEditingName) {
+  if (isEditing) {
     return (
       <div style={{ margin: "1em 0" }}>
         <label>
@@ -72,12 +78,15 @@ export function ImageNameEditor({
           />
         </label>
         <button
-          disabled={input.trim().length === 0 || isWorking}
-          onClick={handleSubmitPressed}
+          onClick={handleSubmit}
+          disabled={isWorking || input.trim().length === 0}
         >
           Submit
         </button>
-        <button onClick={() => setIsEditingName(false)} disabled={isWorking}>
+        <button
+          onClick={() => setIsEditing(false)}
+          disabled={isWorking}
+        >
           Cancel
         </button>
 
@@ -88,7 +97,9 @@ export function ImageNameEditor({
   } else {
     return (
       <div style={{ margin: "1em 0" }}>
-        <button onClick={() => setIsEditingName(true)}>Edit name</button>
+        <button onClick={() => setIsEditing(true)}>
+          Edit name
+        </button>
       </div>
     );
   }

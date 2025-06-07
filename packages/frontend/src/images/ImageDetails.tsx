@@ -8,10 +8,12 @@ export interface ImageDetailsProps{
     loading:boolean;
     error: boolean;
     setImages: React.Dispatch<React.SetStateAction<IApiImageData[]>>;
+    authToken: string;
+    onRename: (id: string, newName: string) => void;
 
 
 }
-export function ImageDetails({images, loading,error, setImages} : ImageDetailsProps) {
+export function ImageDetails({images, loading,error,  authToken, onRename} : ImageDetailsProps) {
 
     
     const {id} = useParams<{id: string}>();
@@ -36,8 +38,9 @@ export function ImageDetails({images, loading,error, setImages} : ImageDetailsPr
             <ImageNameEditor
                 imageId={image.id}
                 initialValue={image.name}
-                images={images}
-                setImages={setImages}
+                // setImages={setImages}
+                authToken={authToken}
+                onRename={onRename}
             />
             <img className="ImageDetails-img" src={image.src} alt={image.name} />
         </>
